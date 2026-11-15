@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%">
+  <defs>
+    <linearGradient id="neonGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+  </defs>
+  <!-- Cyber / Anime Storyteller Mascot -->
+  <circle cx="120" cy="120" r="105" fill="#0f172a" stroke="url(#neonGlow)" stroke-width="5"/>
+  <!-- Holographic Dice / D20 Symbol -->
+  <polygon points="120,40 170,70 170,130 120,160 70,130 70,70" fill="#1e1b4b" stroke="#818cf8" stroke-width="3"/>
+  <polygon points="120,40 120,160 70,70" fill="none" stroke="#a855f7" stroke-width="2"/>
+  <polygon points="120,40 170,70 120,160" fill="none" stroke="#38bdf8" stroke-width="2"/>
+  <polygon points="70,70 170,70 120,160" fill="#312e81" opacity="0.6"/>
+  <!-- Cyber Visor / Eyes -->
+  <rect x="90" y="88" width="60" height="14" rx="7" fill="#06b6d4" opacity="0.9"/>
+  <circle cx="102" cy="95" r="3" fill="#ffffff"/>
+  <circle cx="138" cy="95" r="3" fill="#ffffff"/>
+  <!-- Sparkles -->
+  <path d="M190 55 Q190 70 205 70 Q190 70 190 85 Q190 70 175 70 Q190 70 190 55 Z" fill="#f472b6"/>
+  <path d="M50 150 Q50 160 60 160 Q50 160 50 170 Q50 160 40 160 Q50 160 50 150 Z" fill="#38bdf8"/>
+  <text x="120" y="195" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="900" font-size="14" fill="#e0e7ff" letter-spacing="2">AI DUNGEON MASTER</text>
+  <text x="120" y="212" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="600" font-size="11" fill="#94a3b8">Interactive Storytelling</text>
+</svg>

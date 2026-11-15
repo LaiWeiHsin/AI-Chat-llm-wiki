@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="loreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="50%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="180" height="180" rx="36" fill="#1c1917" stroke="url(#loreGrad)" stroke-width="6"/>
+  <!-- Grimoire / Tome -->
+  <rect x="58" y="45" width="84" height="95" rx="8" fill="#292524" stroke="#fbbf24" stroke-width="4"/>
+  <line x1="72" y1="45" x2="72" y2="140" stroke="#f59e0b" stroke-width="3"/>
+  <!-- Glowing Magic Runes/Star -->
+  <polygon points="105,75 110,87 122,87 112,94 116,106 105,99 94,106 98,94 88,87 100,87" fill="#fbbf24"/>
+  <circle cx="105" cy="90" r="16" fill="none" stroke="#f43f5e" stroke-width="2" stroke-dasharray="4 2"/>
+  <text x="100" y="162" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="800" font-size="15" fill="#fef3c7" letter-spacing="1.2">LOREBOOK</text>
+</svg>

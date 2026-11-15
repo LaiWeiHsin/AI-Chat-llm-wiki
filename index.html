@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>揭開 AI 互動小說與角色扮演的黑盒子 | 技術架構簡報</title>
+  <style>
+    :root {
+      --bg-dark: #0a0d14;
+      --bg-card: rgba(18, 24, 38, 0.85);
+      --border-color: rgba(99, 102, 241, 0.25);
+      --primary: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.4);
+      --accent-cyan: #38bdf8;
+      --accent-pink: #ec4899;
+      --accent-amber: #f59e0b;
+      --accent-emerald: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(236, 72, 153, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.06) 0%, transparent 60%);
+    }
+
+    /* Top Progress Bar */
+    #progress-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      z-index: 100;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 10%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--primary), var(--accent-pink));
+      transition: width 0.3s ease;
+    }
+
+    /* Main Slide Stage (16:9 Aspect Ratio) */
+    #stage {
+      position: relative;
+      width: 92vw;
+      max-width: 1400px;
+      height: 84vh;
+      max-height: 800px;
+      background: var(--bg-card);
+      border-radius: 24px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 35px var(--primary-glow);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Slides Container */
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 50px 65px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(40px) scale(0.98);
+      transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0) scale(1);
+    }
+
+    /* Typography & Headers */
+    .slide-tag {
+      display: inline-block;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--accent-cyan);
+      margin-bottom: 8px;
+    }
+
+    .slide-title {
+      font-size: 2.3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff 30%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 24px;
+      line-height: 1.25;
+    }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      gap: 36px;
+      align-items: center;
+      overflow-y: auto;
+    }
+
+    /* Cards and Grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      width: 100%;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      width: 100%;
+    }
+
+    .card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.25s ease;
+    }
+    .card:hover {
+      border-color: var(--primary);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.2);
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-body {
+      font-size: 0.98rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .badge-img {
+      width: 68px;
+      height: 68px;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+    }
+
+    /* Interactive Simulator */
+    .sim-box {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+    }
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .slider-group label {
+      font-size: 0.95rem;
+      font-weight: 600;
+      min-width: 130px;
+      color: var(--accent-cyan);
+    }
+    .slider-group input[type="range"] {
+      flex: 1;
+      cursor: pointer;
+    }
+    .slider-val {
+      min-width: 50px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .token-pool {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 15px;
+      min-height: 80px;
+    }
+    .token-chip {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .token-kept {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid var(--accent-emerald);
+      color: #6ee7b7;
+    }
+    .token-pruned {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #f87171;
+      opacity: 0.35;
+      text-decoration: line-through;
+    }
+
+    /* Comparison Table */
+    table.spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    table.spec-table th, table.spec-table td {
+      padding: 14px 18px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    table.spec-table th {
+      background: rgba(30, 41, 59, 0.8);
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+    table.spec-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Bottom Navigation Bar */
+    #nav-bar {
+      position: fixed;
+      bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: rgba(18, 24, 38, 0.85);
+      padding: 10px 24px;
+      border-radius: 30px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .nav-btn:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+
+    #slide-indicator {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      min-width: 90px;
+      text-align: center;
+    }
+
+    /* Step sequence styling */
+    .step-pill {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #a5b4fc;
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-right: 6px;
+    }
+
+    .highlight-box {
+      background: rgba(245, 158, 11, 0.1);
+      border-left: 4px solid var(--accent-amber);
+      padding: 14px 18px;
+      border-radius: 0 12px 12px 0;
+      color: #fde68a;
+      font-size: 0.95rem;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Progress Indicator -->
+  <div id="progress-container">
+    <div id="progress-bar"></div>
+  </div>
+
+  <!-- Stage -->
+  <main id="stage">
+
+    <!-- SLIDE 1: Title -->
+    <section class="slide active" id="slide-1">
+      <span class="slide-tag">長庚大學 生成式 AI 專題研究 | LLM Wiki 實作</span>
+      <h1 class="slide-title" style="font-size: 3rem; margin-top: 10px;">揭開 AI 互動小說與<br>角色扮演的底層黑盒子</h1>
+      <div class="slide-content">
+        <div style="flex: 1.2;">
+          <p style="font-size: 1.25rem; line-height: 1.7; color: #cbd5e1; margin-bottom: 24px;">
+            為什麼傳統 RAG 做不出真正動人的互動敘事？<br>
+            從中介層上下文編排、動態世界書到 Min-P 取樣演算法的端到端技術全景拆解。
+          </p>
+          <div style="display: flex; gap: 16px; margin-top: 20px;">
+            <div class="card" style="padding: 14px 20px; border-color: var(--accent-cyan);">
+              <div style="font-size: 0.85rem; color: var(--accent-cyan); font-weight: 700;">研究核心</div>
+              <div style="font-size: 1rem; color: #fff; font-weight: 600;">Middleware & Sampling</div>
+            </div>
+            <div class="card" style="padding: 14px 20px; border-color: var(--accent-pink);">
+              <div style="font-size: 0.85rem; color: var(--accent-pink); font-weight: 700;">沉浸式基石</div>
+              <div style="font-size: 1rem; color: #fff; font-weight: 600;">Lorebook & Cascading</div>
+            </div>
+            <div class="card" style="padding: 14px 20px; border-color: var(--accent-emerald);">
+              <div style="font-size: 0.85rem; color: var(--accent-emerald); font-weight: 700;">開源代表</div>
+              <div style="font-size: 1rem; color: #fff; font-weight: 600;">SillyTavern Standard</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex: 0.8; display: flex; justify-content: center; align-items: center;">
+          <img src="assets/ai-storyteller-mascot.svg" alt="Storyteller Mascot" style="width: 250px; height: 250px; filter: drop-shadow(0 15px 30px rgba(99,102,241,0.5));">
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: Why Naive RAG Fails -->
+    <section class="slide" id="slide-2">
+      <span class="slide-tag">核心痛點剖析</span>
+      <h2 class="slide-title">為什麼傳統客服式 RAG 撐不起互動小說？</h2>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card" style="border-left: 4px solid var(--accent-pink);">
+            <div class="card-title" style="color: #f472b6;">
+              <span>❌ 傳統文件 RAG (Stateless QA)</span>
+            </div>
+            <div class="card-body">
+              <p>• <strong>時序盲區 (Temporal Anomaly)</strong>：純依賴向量相似度。若問「剛才他對你說了什麼？」，容易檢索出 50 回合前某個相似句型，導致時序錯亂崩盤。</p>
+              <p style="margin-top: 10px;">• <strong>抹煞情感張力</strong>：切塊檢索（Chunking）割裂了對話伏筆、角色微表情與當前氛圍。</p>
+              <p style="margin-top: 10px;">• <strong>被動問答思維</strong>：只有當使用者發問才檢索，無法在生成小說過程中主動推進情節。</p>
+            </div>
+          </div>
+
+          <div class="card" style="border-left: 4px solid var(--accent-cyan);">
+            <div class="card-title" style="color: #38bdf8;">
+              <span>✨ 互動式小說與 RP 系統 (Stateful Storytelling)</span>
+            </div>
+            <div class="card-body">
+              <p>• <strong>時序嚴格敏感</strong>：最新對話權重最高，歷史紀錄依時間線性推進。</p>
+              <p style="margin-top: 10px;">• <strong>確定性世界觀觸發</strong>：依賴正則/關鍵字觸發的 <strong>Lorebook</strong>，保證重要名詞 100% 精準喚醒，絕不遺漏設定。</p>
+              <p style="margin-top: 10px;">• <strong>情緒與人格鎖定</strong>：透過 Few-shot 範例對話固定口吻，利用深度注入（Author's Note）維持主線目標。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: End-to-End Architecture Dataflow -->
+    <section class="slide" id="slide-3">
+      <span class="slide-tag">全域架構視圖</span>
+      <h2 class="slide-title">系統端到端資料流 (End-to-End Pipeline)</h2>
+      <div class="slide-content" style="flex-direction: column; align-items: stretch;">
+        <div class="grid-3" style="margin-bottom: 20px;">
+          <div class="card" style="background: rgba(15, 23, 42, 0.8);">
+            <div class="card-title"><span class="step-pill">Phase 1</span>情境檢索與狀態調度</div>
+            <div class="card-body">
+              接收玩家輸入，背景掃描最近 $N$ 字元，對比 <strong>Lorebook</strong> 關鍵字庫，並讀取角色好感度/背包等狀態機數值。
+            </div>
+          </div>
+          <div class="card" style="background: rgba(15, 23, 42, 0.8); border-color: var(--primary);">
+            <div class="card-title"><span class="step-pill" style="background: var(--primary); color:#fff;">Phase 2</span>中介層 Context 編排</div>
+            <div class="card-body">
+              依序堆疊 System Prompt $\rightarrow$ 角色卡人設 $\rightarrow$ Few-shot 語氣錨定 $\rightarrow$ 命中世界書 $\rightarrow$ 歷史窗口 $\rightarrow$ Author's Note 深度注入。
+            </div>
+          </div>
+          <div class="card" style="background: rgba(15, 23, 42, 0.8);">
+            <div class="card-title"><span class="step-pill">Phase 3</span>高溫解碼與狀態回寫</div>
+            <div class="card-body">
+              配置 <strong>Min-P 取樣</strong> 與高溫解碼（$T=1.15$），串流輸出小說段落，並將新的劇情決策異動回寫至持久化狀態槽。
+            </div>
+          </div>
+        </div>
+        <div class="highlight-box">
+          💡 <strong>核心觀察</strong>：LLM 在此架構中只負責「文本渲染與續寫」，真正掌控世界規則、記憶調度與情節節奏的「大腦」其實是<strong>前端中介層 (Orchestrator Middleware)</strong>！
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: Context Assembly Pipeline -->
+    <section class="slide" id="slide-4">
+      <span class="slide-tag">技術柱石之一</span>
+      <h2 class="slide-title">中介層上下文編排 (Context Assembly Pipeline)</h2>
+      <div class="slide-content">
+        <div style="flex: 1.3;">
+          <table class="spec-table">
+            <thead>
+              <tr>
+                <th style="width: 25%;">層級順序</th>
+                <th style="width: 45%;">內容與角色功能</th>
+                <th style="width: 30%;">關鍵技術目的</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. System Prompt</strong></td>
+                <td>第三人稱小說視角、文風渲染指引、防破防規則</td>
+                <td>建立世界的根本物理與文學法則</td>
+              </tr>
+              <tr>
+                <td><strong>2. Character Card</strong></td>
+                <td>角色外貌、性格、現狀設定 (`description`, `scenario`)</td>
+                <td>確立角色身分與認知範圍</td>
+              </tr>
+              <tr>
+                <td><strong>3. mes_example</strong></td>
+                <td>包含心理活動與口癖的少樣本對話 (`<START>`)</td>
+                <td><strong>In-Context Learning 鎖定文風口吻</strong></td>
+              </tr>
+              <tr>
+                <td><strong>4. Author's Note</strong></td>
+                <td>在倒數第 2~4 則訊息深度注入 (`@ Depth 3`)</td>
+                <td><strong>克服長上下文「迷失在中間」困境</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="flex: 0.7; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <img src="assets/sillytavern-badge.svg" class="badge-img" style="width: 130px; height: 130px;" alt="SillyTavern">
+          <p style="margin-top: 15px; font-size: 0.9rem; color: var(--text-muted); text-align: center;">
+            <strong>SillyTavern Standard</strong><br>
+            Character Card V2/V3 規範之定義者
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: Lorebook & Cascading Activation -->
+    <section class="slide" id="slide-5">
+      <span class="slide-tag">技術柱石之二</span>
+      <h2 class="slide-title">動態世界書 (Lorebook) 運作密碼</h2>
+      <div class="slide-content">
+        <div style="flex: 0.8; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <img src="assets/lorebook-icon.svg" class="badge-img" style="width: 140px; height: 140px;" alt="Lorebook">
+          <div style="margin-top: 20px; font-size: 0.95rem; text-align: center; color: var(--accent-amber); font-weight: 700;">
+            輕量化動態世界觀注入
+          </div>
+        </div>
+        <div style="flex: 1.2;">
+          <div class="card" style="margin-bottom: 16px;">
+            <div class="card-title" style="color: var(--accent-amber);">1. 搜尋範圍 (Search Range)</div>
+            <div class="card-body">只掃描對話末端 1,000 ~ 4,000 字元，避免幾百回合前的歷史名詞造成誤喚醒。</div>
+          </div>
+          <div class="card" style="margin-bottom: 16px; border-color: rgba(245, 158, 11, 0.4);">
+            <div class="card-title" style="color: #fbbf24;">2. 級聯遞迴觸發 (Cascading Activation)</div>
+            <div class="card-body">
+              正文提及 <code>[亞特蘭提斯]</code> $\rightarrow$ 觸發條目 <code>[亞特蘭提斯]</code> $\rightarrow$ 條目內文含有 <code>[海神三叉戟]</code> $\rightarrow$ <strong>自動連鎖觸發神器條目</strong>！完美模擬人類的關聯聯想網。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-emerald);">3. Token 預算與保留 (Token Budget & Reserved)</div>
+            <div class="card-body">設定最大 Token 上限（例如佔 Context 20%），並依 Insertion Order 權重排序，防止世界書過載。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: Min-P Sampling & Interactive Demo -->
+    <section class="slide" id="slide-6">
+      <span class="slide-tag">技術柱石之三</span>
+      <h2 class="slide-title">Min-P 取樣演算法：解放角色情感張力</h2>
+      <div class="slide-content" style="flex-direction: column; align-items: stretch;">
+        <div style="display: flex; gap: 24px; margin-bottom: 15px;">
+          <div style="flex: 1;">
+            <p style="font-size: 1.05rem; line-height: 1.6; color: #cbd5e1;">
+              <strong>數學原理：</strong><br>
+              $$\text{Threshold} = \text{min\_p} \times P(\text{top\_token})$$
+              不再使用固定的累積機率（Top-P），而是<strong>以最高機率的 Token 為基準動態縮放門檻</strong>！允許創作者安全將溫度拉高至 <code>1.1 ~ 1.3</code>，徹底根除機械化復讀。
+            </p>
+          </div>
+          <div style="flex: 1;">
+            <div class="sim-box">
+              <div class="slider-group">
+                <label>Min-P 閥值：</label>
+                <input type="range" id="minp-range" min="0.01" max="0.25" step="0.01" value="0.08" oninput="updateSim()">
+                <span class="slider-val" id="minp-val">0.08</span>
+              </div>
+              <div class="slider-group">
+                <label>Top Token 機率：</label>
+                <input type="range" id="top-range" min="0.10" max="0.90" step="0.05" value="0.30" oninput="updateSim()">
+                <span class="slider-val" id="top-val">0.30</span>
+              </div>
+              <div style="font-size: 0.88rem; color: #94a3b8;">
+                動態截斷門檻：<strong id="cutoff-val" style="color: var(--accent-emerald);">0.024</strong> (低於此機率之詞彙將被剔除)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 6px;">候選 Token 模擬池 (綠色保留 / 紅色剔除)：</div>
+          <div class="token-pool" id="token-display">
+            <!-- Dynamically populated by JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Memory Evolution -->
+    <section class="slide" id="slide-7">
+      <span class="slide-tag">技術柱石之四</span>
+      <h2 class="slide-title">角色扮演系統的四代記憶演進</h2>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">第一代：原始滑動窗口 (Sliding Window)</div>
+            <div class="card-body">
+              • 只保留最新 $N$ 則對話。<br>
+              • <strong>優點</strong>：情緒最連貫、原汁原味。<br>
+              • <strong>缺點</strong>：超出窗口即患上<strong>嚴重失憶症 (Amnesia)</strong>。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">第二代：滾動摘要 (Rolling Summary)</div>
+            <div class="card-body">
+              • 定期呼叫背景模型將舊對話壓縮成數百字大綱。<br>
+              • <strong>缺點</strong>：<strong>情感與細節嚴重流失</strong>（將深情對話壓縮成「兩人進行了交流」），失去沉浸感。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">第三代：語意向量 RAG (Vector Search)</div>
+            <div class="card-body">
+              • 將歷史對話切塊做 Embedding 檢索。<br>
+              • <strong>致命傷</strong>：<strong>時序錯亂 (Temporal Anomaly)</strong>，無法區分事件先後順序，容易答非所問。
+            </div>
+          </div>
+          <div class="card" style="border-color: var(--accent-emerald); background: rgba(16, 185, 129, 0.08);">
+            <div class="card-title" style="color: #6ee7b7;">第四代：混合狀態機 + 動態世界書</div>
+            <div class="card-body">
+              • <strong>當前業界最佳解</strong>：滑動對話窗口（保鮮）+ Lorebook 關鍵字喚醒（背景）+ Key-Value 結構化數值槽（好感度/位置/道具）。
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Ecosystem Comparison -->
+    <section class="slide" id="slide-8">
+      <span class="slide-tag">生態現況調研</span>
+      <h2 class="slide-title">開源社群 vs 商業平台特色對比</h2>
+      <div class="slide-content">
+        <div class="grid-3">
+          <div class="card" style="text-align: center;">
+            <img src="assets/sillytavern-badge.svg" class="badge-img" alt="SillyTavern" style="margin-bottom: 12px;">
+            <div class="card-title" style="justify-content: center;">SillyTavern</div>
+            <div class="card-body" style="text-align: left;">
+              <p>• <strong>定位</strong>：開源中介層與客戶端之王</p>
+              <p>• <strong>架構特點</strong>：完全掌控 Context、全自訂取樣 (Min-P/Mirostat)、外掛生態系 (TTS/立繪/圖生圖)</p>
+              <p>• <strong>社群驅動</strong>：Character Card V2/V3 標準制定者</p>
+            </div>
+          </div>
+
+          <div class="card" style="text-align: center;">
+            <img src="assets/novelai-badge.svg" class="badge-img" alt="NovelAI" style="margin-bottom: 12px;">
+            <div class="card-title" style="justify-content: center;">NovelAI</div>
+            <div class="card-body" style="text-align: left;">
+              <p>• <strong>定位</strong>：純文學創作與互動小說</p>
+              <p>• <strong>架構特點</strong>：專用文學微調模型 (Kayra/Clio)、工業級 Lorebook 級聯引擎、Context Viewer 上下文透視</p>
+              <p>• <strong>風格</strong>：沉浸式小說續寫而非單純聊天室</p>
+            </div>
+          </div>
+
+          <div class="card" style="text-align: center;">
+            <img src="assets/character-ai-badge.svg" class="badge-img" alt="Character.ai" style="margin-bottom: 12px;">
+            <div class="card-title" style="justify-content: center;">Character.ai</div>
+            <div class="card-body" style="text-align: left;">
+              <p>• <strong>定位</strong>：超高並發大眾商業聊天平台</p>
+              <p>• <strong>架構特點</strong>：自研超低推理成本對話模型、Swipe 重選驅動的 RLHF/DPO 飛輪、對話釘選 (Pin)</p>
+              <p>• <strong>挑戰</strong>：重度安全審查引起的角色靈魂閹割爭議</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Architecture Checklist -->
+    <section class="slide" id="slide-9">
+      <span class="slide-tag">工程實務總結</span>
+      <h2 class="slide-title">打造高品質 AI 互動小說系統的四要素</h2>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-cyan);">1. 嚴謹的 Prompt Manager</div>
+            <div class="card-body">
+              切勿將對話一股腦丟進去。必須依據 <code>System -> Persona -> Examples -> Lore -> History -> Author's Note</code> 進行嚴格分層排列，並善用 XML/Markdown 標籤防禦提示詞注入。
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-amber);">2. 動態 Lorebook 取代暴力 RAG</div>
+            <div class="card-body">
+              對角色設定、關鍵道具與魔法系統採用基於正則的精確匹配與級聯檢索，確保世界觀 100% 準確且不佔用過量 Token 預算。
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-emerald);">3. 全面切換至 Min-P 取樣</div>
+            <div class="card-body">
+              捨棄傳統 Top-P，採用 <code>min_p = 0.05 ~ 0.08</code> 搭配高溫度（<code>T = 1.15 ~ 1.25</code>），讓角色的遣詞用字鮮活多變，擺脫冰冷的機器人說話風格。
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-pink);">4. 雙軌記憶 (對話流水 + 狀態機)</div>
+            <div class="card-body">
+              短期對話依靠滑動窗口維繫當前情感，長期變化（好感度增減、持有道具、當前所在地）透過結構化狀態機回寫儲存。
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: Conclusion & Q&A -->
+    <section class="slide" id="slide-10">
+      <span class="slide-tag">研討結束</span>
+      <h2 class="slide-title" style="font-size: 2.8rem;">Q & A 交流與討論</h2>
+      <div class="slide-content">
+        <div style="flex: 1.2;">
+          <p style="font-size: 1.25rem; line-height: 1.8; color: #cbd5e1;">
+            AI 互動式小說與角色扮演，是大型語言模型在「邏輯推理」之外展現「文學靈魂與情感共鳴」的最前沿實踐。<br>
+            當優秀的中介層架構、精準世界書與現代取樣演算法結合，AI 才能真正成為一個有血有肉的故事主講人。
+          </p>
+          <div class="highlight-box" style="margin-top: 30px;">
+            📁 <strong>本知識庫全部內容已沉澱於本地 LLM Wiki</strong>：<br>
+            包含原始文獻、深度技術概念解析、實體評測與架構全景日誌。
+          </div>
+        </div>
+        <div style="flex: 0.8; display: flex; justify-content: center;">
+          <img src="assets/ai-storyteller-mascot.svg" style="width: 220px; height: 220px;" alt="End Mascot">
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation Control Bar -->
+  <footer id="nav-bar">
+    <button class="nav-btn" onclick="prevSlide()">◀ 上一頁</button>
+    <div id="slide-indicator">1 / 10</div>
+    <button class="nav-btn" onclick="nextSlide()">下一頁 ▶</button>
+    <button class="nav-btn" onclick="toggleFullscreen()" style="margin-left: 10px;">⛶ 全螢幕</button>
+  </footer>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    let currentSlide = 0;
+    const totalSlides = slides.length;
+
+    function showSlide(index) {
+      if (index < 0) index = 0;
+      if (index >= totalSlides) index = totalSlides - 1;
+      
+      slides.forEach((slide, i) => {
+        slide.classList.toggle('active', i === index);
+      });
+
+      currentSlide = index;
+      document.getElementById('slide-indicator').textContent = `${index + 1} / ${totalSlides}`;
+      document.getElementById('progress-bar').style.width = `${((index + 1) / totalSlides) * 100}%`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        showSlide(currentSlide + 1);
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        showSlide(currentSlide - 1);
+      }
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.log(err));
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'Backspace') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else if (e.key === 'Home') {
+        showSlide(0);
+      } else if (e.key === 'End') {
+        showSlide(totalSlides - 1);
+      }
+    });
+
+    // Min-P Interactive Simulator Logic
+    const tokens = [
+      { text: "冷笑道", prob: 0.30 },
+      { text: "拔出長劍", prob: 0.18 },
+      { text: "眼中閃過一絲殺意", prob: 0.12 },
+      { text: "猶豫不決", prob: 0.08 },
+      { text: "深深嘆氣", prob: 0.05 },
+      { text: "向前逼近一步", prob: 0.03 },
+      { text: "突然大笑起來", prob: 0.02 },
+      { text: "沉默不語", prob: 0.015 },
+      { text: "跳起踢踏舞(雜訊)", prob: 0.004 },
+      { text: "亂碼或破防詞(亂碼)", prob: 0.001 }
+    ];
+
+    function updateSim() {
+      const minP = parseFloat(document.getElementById('minp-range').value);
+      const topP = parseFloat(document.getElementById('top-range').value);
+      document.getElementById('minp-val').textContent = minP.toFixed(2);
+      document.getElementById('top-val').textContent = topP.toFixed(2);
+
+      const threshold = minP * topP;
+      document.getElementById('cutoff-val').textContent = threshold.toFixed(4);
+
+      const container = document.getElementById('token-display');
+      container.innerHTML = '';
+
+      tokens.forEach(tok => {
+        const isKept = tok.prob >= threshold;
+        const chip = document.createElement('div');
+        chip.className = `token-chip ${isKept ? 'token-kept' : 'token-pruned'}`;
+        chip.innerHTML = `${tok.text} <span style="font-size:0.75rem; opacity:0.8;">(${(tok.prob * 100).toFixed(1)}%)</span>`;
+        container.appendChild(chip);
+      });
+    }
+
+    // Initialize
+    showSlide(0);
+    updateSim();
+  </script>
+</body>
+</html>
